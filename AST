@@ -1,0 +1,58 @@
+-- ASDL's 5 builtin types are:
+-- identifier, int, string, object, constant
+
+module Python
+{
+    stmt = FunctionDef(identifier name, arguments args,
+                       stmt* body, expr* decorator_list, expr? returns,
+                       string? type_comment)
+
+          | Return(expr? value)
+
+          | Assign(expr* targets, expr value, string? type_comment)
+
+
+          -- use 'orelse' because else is a keyword in target languages
+          | For(expr target, expr iter, stmt* body, stmt* orelse, string? type_comment)
+          | While(expr test, stmt* body, stmt* orelse)
+          | If(expr test, stmt* body, stmt* orelse)
+
+          | Expr(expr value)
+
+
+          -- BoolOp() can use left & right?
+    expr = BoolOp(boolop op, expr* values)
+         | BinOp(expr left, operator op, expr right)
+         | UnaryOp(unaryop op, expr operand)
+         -- need sequences for compare to distinguish between
+         -- x < 4 < 3 and (x < 4) < 3
+         | Compare(expr left, cmpop* ops, expr* comparators)
+         | Call(expr func, expr* args, keyword* keywords)
+         | Constant(constant value, string? kind)
+
+         -- the following expression can appear in assignment context
+         | Subscript(expr value, slice slice, expr_context ctx)
+         | Name(identifier id, expr_context ctx)
+         | List(expr* elts, expr_context ctx)
+         | Tuple(expr* elts, expr_context ctx)
+
+
+
+    slice = Index(expr value)
+
+    boolop = And | Or
+
+    operator = Add | Sub | Mult | Div | Mod | Pow
+
+    unaryop = Not | UAdd | USub
+
+    cmpop = Eq | NotEq | Lt | LtE | Gt | GtE
+
+
+
+    arguments = (arg* posonlyargs, arg* args, arg? vararg, arg* kwonlyargs,
+                 expr* kw_defaults, arg? kwarg, expr* defaults)
+
+    arg = (identifier arg, expr? annotation, string? type_comment)
+
+}
