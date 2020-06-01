@@ -1,3 +1,5 @@
+from itertools import count
+
 class InvalidOpCodeException(Exception):
     pass
 
@@ -18,7 +20,7 @@ class Cpu:
         return self.pd[self.pd_pointer] if self.pd_is_head else self.ram[self.ram_pointer]
 
     def movePointer(self, instruction):
-        amount = [-1, 1][instruction]
+        amount = -1 if instruction == 'LEFT' else 1
         if self.pd_is_head:
             self.pd_pointer = (self.pd_pointer + amount) % len(self.pd)
         else:
@@ -27,42 +29,44 @@ class Cpu:
     # empty: 2, 3, 5, 12, 15
     def clk(self):
         instruction = self.code[self.program_counter]
-        if instruction < 2:  # LEFT, RIGHT
+        if instruction in ['LEFT', 'RIGHT']:  # LEFT, RIGHT
             self.movePointer(instruction)
-        elif instruction == 4:  # SWH
+        elif instruction == 'SWH':  # SWH
             self.pd_is_head = not self.pd_is_head
-        elif instruction == 6:  # LOAD
+        elif instruction == 'LOAD':  # LOAD
             self.register = self.readValue()
             self.logical = (self.register != 0)
-        elif instruction == 7:  # ADD
+        elif instruction == 'ADD':  # ADD
             self.register += self.readValue()
             self.logical = (self.register < 0)
-        elif instruction == 8:  # INV
+        elif instruction == 'INV':  # INV
             self.register = -self.register
             self.logical = not self.logical
-        elif instruction == 9:  # WRITE
+        elif instruction == 'WRITE':  # WRITE
             if self.pd_is_head:
                 self.pd[self.pd_pointer] = self.register
             else:
                 self.ram[self.ram_pointer] = self.register
-        elif instruction == 10:  # CJMP
+        elif instruction == 'CJMP':  # CJMP
             if self.logical:
                 self.program_counter = self.pd[self.pd_pointer]
                 return
-        elif instruction == 11:  # MJMP
+        elif instruction == 'MJMP':  # MJMP
             self.pd_pointer = self.readValue()
-        elif instruction == 13:  # SHL
+            self.logical = True
+        elif instruction == 'SHL':  # SHL
             self.register = self.register * 2
             self.logical = 0 #should catch leftover in praxis
-        elif instruction == 14:  # SHR
+        elif instruction == 'SHR':  # SHR
             self.register = self.register // 2
             self.logical = self.register % 2
         else:
             raise InvalidOpCodeException
         self.program_counter += 1
 
-    def print_state(self, end='\n'):
-        print(f'{self.program_counter: >3} '
+    def print_state(self, end='\n', i=None):
+        print((f'{i: >6}' if i is not None else '') +
+              f'{self.program_counter: >6} '
               f'{self.ram_pointer: >3} '
               f'{self.pd_pointer: >3}  '
               f'{self.register: >6} '
@@ -72,10 +76,12 @@ class Cpu:
               end=end)
 
     def run(self):
-        self.print_state()
-        while self.program_counter < len(self.code):
+        self.print_state(i=0)
+        for i in count(1):
             self.clk()
-            self.print_state()
+            self.print_state(i=i)
+            if self.program_counter >= len(self.code):
+                break
 
 
 if __name__ == '__main__':
