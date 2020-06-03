@@ -1,7 +1,4 @@
 
-def einfaches_babe():
-    babe = 2
-    return babe < 3
 
 def ggbabe(a, b):
     if a == 0:
@@ -13,6 +10,7 @@ def ggbabe(a, b):
             else:
                 b = b - a
         res = a
+    #some = res
     return res
 
 
@@ -28,3 +26,8 @@ def fibobabe(p):
             a = c
         res = b
     return res
+
+
+def einfaches_babe():
+    babe = 2
+    return babe < 3
