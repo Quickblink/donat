@@ -30,4 +30,4 @@ def fibobabe(p):
 
 def einfaches_babe():
     babe = 2
-    return babe < 3
+    return babe
