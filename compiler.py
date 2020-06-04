@@ -18,6 +18,8 @@ def from_source(program_source):
     return func_dict
 
 def compile_function(node):
+    if node.name == 'main':
+        print('here')
     parameters = []
     for arg in node.args.args:
         parameters.append(arg.arg)
@@ -35,15 +37,18 @@ def compile_function(node):
         const_mem[v] = ('label', translate_label[k])
     for k, v in const_alloc['fun'].items():
         const_mem[v] = ('fun', k)
-    #for line in code:
-   #     print(line)
+    for k, v in const_alloc['mem_jmp'].items():
+        const_mem[v] = ('mem_jmp', const_alloc[k[1]][k[0]])
+    if node.name == 'main':
+        for line in code:
+            print(line)
    # for line in assembly:
     #    print(line)
     #print(const_mem)
     #print(alloc_ram)
     # print(const_alloc, const_size)
     # print(translate_label)
-    return {'code': assembly, 'const': const_mem, 'entry': 0}
+    return {'code': assembly, 'const': const_mem, 'entry': 0, 'var_alloc': alloc_ram['var']}
 
 
 '''
@@ -71,6 +76,7 @@ class MovementPlanner:
         self.label_ram = {}
         self.label_const_head = {}
         self.unreachable = False
+        self.in_array = False
 
 
     def add_instructions(self, instructions):
@@ -81,17 +87,22 @@ class MovementPlanner:
         lookup = self.alloc_ram if target[1] in ['tmp', 'var'] else self.alloc_const
         return lookup[target[1]][target[0]], target[1] not in ['tmp', 'var']
 
-    def move_to_target(self, target, lookup=False):
-        #target = self.lookup(target) if lookup else target
+    def move_to_target(self, target):
+        if self.in_array:
+            assert (len(target) == 3 or target[1] in ['array', 'tmp', 'var'])
         if target[1] == 'array':
             self.move_to_target(target[0])
             self.add_instructions(['MJMP'])
             self.const_head = True
-        if len(target) == 3:
+            self.in_array = True
+        elif len(target) == 3:
             self.move_to_target(target[2])
             self.add_instructions(['MJMP'])
+            self.const_ptr = self.alloc_const[target[1]][target[0]]
             self.const_head = True
-        if target[1] in ['const', 'label', 'fun', 'mem_jmp']:
+            self.in_array = False
+        elif target[1] in ['const', 'label', 'fun', 'mem_jmp']:
+            assert not self.in_array
             if not self.const_head:
                 self.add_instructions(['SWH'])
                 self.const_head = True
@@ -99,7 +110,8 @@ class MovementPlanner:
             direction = 'LEFT' if goal_pos <= self.const_ptr else 'RIGHT'
             distance = abs(goal_pos - self.const_ptr)
             self.add_instructions([direction]*distance)
-        if target[1] in ['tmp', 'var']:
+            self.const_ptr = goal_pos
+        elif target[1] in ['tmp', 'var']:
             if self.const_head:
                 self.add_instructions(['SWH'])
                 self.const_head = False
@@ -107,15 +119,22 @@ class MovementPlanner:
             direction = 'LEFT' if goal_pos <= self.ram_ptr else 'RIGHT'
             distance = abs(goal_pos - self.ram_ptr)
             self.add_instructions([direction]*distance)
+            self.ram_ptr = goal_pos
+        else:
+            Babeception('Error in move!')
 
 
     def move_to_state(self, state, set_logicbit):
+        goal_ram, goal_const, goal_head = state
         if self.unreachable:
+            self.ram_ptr = self.alloc_ram[goal_ram[1]][goal_ram[0]]
+            self.const_ptr = self.alloc_const[goal_const[1]][goal_const[0]]
+            self.const_head = goal_head
             self.unreachable = False
             return
-        goal_ram, goal_const, goal_head = state
         if len(goal_const) == 3:
             self.move_to_target(goal_const)
+            goal_const = (goal_const[0], goal_const[1])
         if goal_head: # end on const
             if self.alloc_ram[goal_ram[1]][goal_ram[0]] != self.ram_ptr:
                 self.move_to_target(goal_ram)
@@ -128,36 +147,49 @@ class MovementPlanner:
                 if set_logicbit:
                     self.add_instructions(['LOAD'])
             self.move_to_target(goal_ram)
+        assert self.alloc_ram[goal_ram[1]][goal_ram[0]] == self.ram_ptr
+        assert self.alloc_const[goal_const[1]][goal_const[0]] == self.const_ptr
+        assert self.const_head == goal_head
+
+    def find_ram_label(self, ram_pos):
+        for num, loc in self.alloc_ram['tmp'].items():
+            if loc == ram_pos:
+                return num, 'tmp'
+        for num, loc in self.alloc_ram['var'].items():
+            if loc == ram_pos:
+                return num, 'var'
+        raise Babeception('no label found')
 
 
     def decide_label_state(self, code):
         for i, cmd in enumerate(code):
             if cmd[0] == 'label':
+                self.label_const_head[cmd[1][0]] = False
                 for inn_cmd in code[i:]:
                     if len(inn_cmd) == 2 and type(inn_cmd[1]) is tuple:
                         if inn_cmd[1][1] == 'tmp' or inn_cmd[1][1] == 'var':
-                            self.label_ram[cmd[1]] = inn_cmd[1]
+                            self.label_ram[cmd[1][0]] = inn_cmd[1]
                             break
                         elif len(inn_cmd[1]) == 3:
-                            self.label_ram[cmd[1]] = inn_cmd[1][2]
+                            self.label_ram[cmd[1][0]] = inn_cmd[1][2]
                         else:
-                            self.label_const_head[cmd[1]] = True
+                            self.label_const_head[cmd[1][0]] = True
 
     def plan(self, code):
         self.decide_label_state(code)
         for cmd in code:
-            if cmd[0] in ['LOAD', 'ADD', 'WRITE', 'INV'] and len(cmd) == 2:
+            if cmd[0] in ['LOAD', 'ADD', 'WRITE', 'INV']:
                 if len(cmd) == 2:
                     self.move_to_target(cmd[1])
                 self.add_instructions([cmd[0]])
             elif cmd[0] in ['CJMP', 'dir_jump', 'label']:
-                if cmd[1] not in self.label_ram:
-                    self.label_ram[cmd[1]] = self.ram_ptr
-                self.move_to_state((self.label_ram[cmd[1]], cmd[1], self.label_const_head[cmd[1]]), cmd[0] == 'dir_jump')
+                if cmd[1][0] not in self.label_ram:
+                    self.label_ram[cmd[1][0]] = self.find_ram_label(self.ram_ptr)
+                self.move_to_state((self.label_ram[cmd[1][0]], cmd[1], self.label_const_head[cmd[1][0]]), cmd[0] == 'dir_jump')
                 if cmd[0] == 'label':
                     self.translate_label[cmd[1][0]] = self.ins_ptr
                 else:
-                    self.add_instructions('CJMP')
+                    self.add_instructions(['CJMP'])
             elif cmd[0] == 'label_back':
                 self.translate_label[cmd[1][0]] = self.ins_ptr
                 self.const_ptr = self.alloc_const[cmd[1][1]][cmd[1][0]]
@@ -165,16 +197,22 @@ class MovementPlanner:
                 self.const_head = True
             elif cmd[0] == 'call':
                 self.move_to_state(((cmd[2][1], 'tmp'), (cmd[1], 'fun'), True), False)
-                self.add_instructions(['MJMP', 'CJMP'])
-            elif cmd[0] == 'return':
+                self.add_instructions(['MJMP', 'LOAD', 'CJMP'])
+            elif cmd[0] in ['return', 'return_write']:
                 if self.const_head:
                     self.add_instructions(['SWH'])
                     self.const_head = False
                 self.add_instructions(['LEFT'] * (self.ram_ptr+1))
-                self.add_instructions(['MJMP', 'CJMP'])
+                self.add_instructions(['MJMP'])
+                if cmd[0] == 'return_write':
+                    self.add_instructions(['SWH', 'WRITE', 'SWH'])
+                self.add_instructions(['LOAD', 'CJMP'])
                 self.unreachable = True
             else:
                 raise Babeception('Assembler Error: ' + str(cmd) + ' unkown.')
+        assert self.ins_ptr == len(self.out_code)
+        if not self.unreachable:
+            return self.plan([('return',)])
         return self.out_code, self.translate_label
 
 
@@ -194,11 +232,12 @@ def simple_allocate(code, parameters):
         if len(cmd) == 2 and type(cmd[1]) is tuple:
             if cmd[1][1] == 'tmp':
                 if cmd[0] == 'WRITE':
-                    ram_alloc[cmd[1][0]] = tmp_current
+                    ram_alloc['tmp'][cmd[1][0]] = tmp_current
                     tmp_current += 1
                     tmp_max = max(tmp_max, tmp_current)
                 else:
                     tmp_current -= 1
+                    assert ram_alloc['tmp'][cmd[1][0]] == tmp_current
             if cmd[1][1] in ['const', 'mem_jmp']:
                 if cmd[1][0] not in const_alloc[cmd[1][1]]:
                     const_alloc[cmd[1][1]][cmd[1][0]] = const_cnt
@@ -208,8 +247,11 @@ def simple_allocate(code, parameters):
                     ram_alloc['var'][cmd[1][0]] = var_cnt
                     var_cnt += 1
             if len(cmd) == 3:
-                tmp_current -= 1
-                    #tmp_current += 1
+                pass
+                #tmp_current -= 1
+                #assert ram_alloc['tmp'][cmd[2][0]] == tmp_current
+
+                #tmp_current += 1
                     #tmp_max = max(tmp_max, tmp_current)
         if cmd[0] == 'call':
             #if cmd[1] not in function_signatures:
@@ -218,6 +260,9 @@ def simple_allocate(code, parameters):
             #tmp_max = max(tmp_max, tmp_current+function_signatures[cmd[1]][0])
             const_alloc['fun'][cmd[1]] = const_cnt
             const_cnt += 1
+            ram_alloc['tmp'][cmd[3][0]] = tmp_current
+            tmp_current += 1
+            tmp_max = max(tmp_max, tmp_current)
         if cmd[0] in ['label', 'label_back']:
             if cmd[1][0] not in const_alloc['label']:
                 const_alloc['label'][cmd[1][0]] = const_cnt
@@ -232,7 +277,60 @@ class functionCompiler:
         self.tmp_cnt = 0
         self.jmp_cnt = 0
 
+    def manage_array_jump_old2(self, code):
+        new_code = [] + code
+        i = 0
+        while i < len(new_code):
+            cmd = new_code[i]
+            if len(cmd) == 2 and type(cmd[1]) is tuple and cmd[1][1] == 'array':
+                k = i + 1
+                while k < len(new_code):
+                    cmd = new_code[k]
+                    if len(cmd) == 2 and type(cmd[1]) is tuple and cmd[1][1] in ['const', 'label']:
+                        new_target = (*cmd[1], (self.tmp_cnt, 'tmp'))
+                        new_code[k] = (cmd[0], new_target)
+                        p = i - 1
+                        while p >= 0 and (new_code[p][0] not in ['label', 'WRITE']):
+                            p -= 1
+                        new_code.insert(p+1, ('WRITE', (self.tmp_cnt, 'tmp')))
+                        new_code.insert(p+1, ('LOAD', (cmd[1], 'mem_jmp')))
+                        self.tmp_cnt += 1
+                        i += 2
+                        break
+                    if (len(cmd) == 2 and type(cmd[1]) is tuple and cmd[1][1] == 'array') or cmd[0] in ['call', 'return']:
+                        break
+                    k += 1
+            i += 1
+        return new_code
+
+
     def manage_array_jump(self, code):
+        # have to save: 'const' or 'label' gets used, 'label' itself
+        # no save: another 'array', 'call', 'return'
+        full_code = []
+        copy_code = []
+        active = False
+        for cmd in code:
+            # add load/write adress before access (if nötig) and add remove tmp before corresponding next const action
+            if len(cmd) == 2 and type(cmd[1]) is tuple and cmd[1][1] in ['const', 'label', 'mem_jmp'] and active: #TODO: check if mem_jmp here makes problems
+                ncode = [
+                    ('LOAD', (cmd[1], 'mem_jmp')),
+                    ('WRITE', (self.tmp_cnt, 'tmp'))
+                ]
+                copy_code += ncode
+                new_target = (*cmd[1], (self.tmp_cnt, 'tmp'))
+                full_code += [(cmd[0], new_target)]
+                self.tmp_cnt += 1
+                active = False
+            else:
+                if len(cmd) == 2 and type(cmd[1]) is tuple and cmd[1][1] == 'array':
+                    active = True
+                elif cmd[0] in ['call', 'return'] and active:
+                    active = False
+                full_code += [cmd]
+        return copy_code + full_code
+
+    def manage_array_jump_old(self, code):
         # have to save: 'const' or 'label' gets used, 'label' itself
         # no save: another 'array', 'call', 'return'
         full_code = []
@@ -293,11 +391,16 @@ class functionCompiler:
                 code = self.compile_int_expr(node.value, target)
                 full_code += code
             elif type(node) is ast.Return:
-                code = self.compile_int_expr(node.value, 'register')
-                op = ('return',)
+                if node.value:
+                    code = self.compile_int_expr(node.value, 'register')
+                    op = ('return_write',)
+                else:
+                    code = []
+                    op = ('return',)
                 full_code += code + [op]
             elif type(node) is ast.Expr:
-                pass  # TODO: useful only with arrays, empty target?
+                code = self.compile_int_expr(node.value, 'register') #TODO: maybe make this more elegant
+                full_code += code
             elif type(node) is ast.If:
                 if len(node.orelse) == 0:
                     test, _ = preprocess_boolean(node.test, True)
@@ -371,7 +474,7 @@ class functionCompiler:
 
     def compile_int_expr(self, node, target):
         if type(node) is ast.BinOp:
-            op_to_func = {ast.MatMult: 'MUL', ast.Div: 'DIV', ast.Mod: 'MOD', ast.Pow: 'POW'}
+            op_to_func = {ast.Mult: 'MUL', ast.Div: 'DIV', ast.Mod: 'MOD', ast.Pow: 'POW'}
             if type(node.op) in op_to_func:
                 return self.compile_int_expr(ast.Call(ast.Name(op_to_func[type(node.op)]), [node.left, node.right]), target)
             # TODO: add shift, maybe second mul?
@@ -394,7 +497,7 @@ class functionCompiler:
         elif type(node) is ast.Call:
             jmp_code = self.jmp_cnt
             code = [
-                ('LOAD', (jmp_code, 'label')),
+                ('LOAD', ((jmp_code, 'label'), 'mem_jmp')),
                 ('WRITE', (self.tmp_cnt, 'tmp'))
             ]
             self.jmp_cnt += 1
@@ -403,11 +506,20 @@ class functionCompiler:
             for i in range(len(node.args)):
                 part_code = self.compile_int_expr(node.args[i], (old_cnt+i, 'tmp'))
                 code += part_code
+            par = (self.tmp_cnt, 'tmp')
             code += [
-                ('call', node.func.id, list(range(old_cnt-1, old_cnt + len(node.args)))),  # maybe start location is enough
+                ('call', node.func.id, list(range(old_cnt-1, old_cnt + len(node.args))), par),  # maybe start location is enough
                 ('label_back', (jmp_code, 'label'))
             ]
-            return self.save_output(code, target)
+            self.tmp_cnt += 1
+            load = ('LOAD', par)
+            if target == 'register':
+                return code+[load]
+            elif target:
+                write = ('WRITE', target)
+                return code+[load, write]
+            else:
+                return code, par
         elif type(node) in [ast.Constant, ast.Name, ast.Subscript]:
             code = []
             if type(node) is ast.Constant:
@@ -516,7 +628,7 @@ def preprocess_boolean(expr, inv):
             for v in new_vs:
                 nv, _ = preprocess_boolean(v, True)
                 new_vs2.append(nv)
-            expr = ast.BoolOp(ast.And(), new_vs)
+            expr = ast.BoolOp(ast.And(), new_vs2)
             expr.pos_child = pos_child
             return expr, False
         else:

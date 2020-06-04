@@ -22,9 +22,9 @@ class Cpu:
     def movePointer(self, instruction):
         amount = -1 if instruction == 'LEFT' else 1
         if self.pd_is_head:
-            self.pd_pointer = (self.pd_pointer + amount) % len(self.pd)
+            self.pd_pointer = (self.pd_pointer + amount)# % len(self.pd)
         else:
-            self.ram_pointer = (self.ram_pointer + amount) % len(self.ram)
+            self.ram_pointer = (self.ram_pointer + amount)# % len(self.ram)
 
     # empty: 2, 3, 5, 12, 15
     def clk(self):
@@ -53,24 +53,31 @@ class Cpu:
                 return
         elif instruction == 'MJMP':  # MJMP
             self.pd_pointer = self.readValue()
-            self.logical = True
+            #self.logical = True
+            self.pd_is_head = True
         elif instruction == 'SHL':  # SHL
             self.register = self.register * 2
             self.logical = 0 #should catch leftover in praxis
         elif instruction == 'SHR':  # SHR
-            self.register = self.register // 2
             self.logical = self.register % 2
+            self.register = self.register // 2
         else:
             raise InvalidOpCodeException
         self.program_counter += 1
 
     def print_state(self, end='\n', i=None):
+        vars = {}
+        for name, loc in self.alloc_var.items():
+            vars[name] = self.ram[loc+self.ram_offset]
         print((f'{i: >6}' if i is not None else '') +
               f'{self.program_counter: >6} '
+              f'{self.code[self.program_counter]: >6} '
               f'{self.ram_pointer: >3} '
               f'{self.pd_pointer: >3}  '
               f'{self.register: >6} '
+              f'{"T"if self.logical else "F"} '
               f'{" pd" if self.pd_is_head else "ram"} '
+              f'{str(vars)}'
               f'{self.ram} '
               f'{self.pd}',
               end=end)
@@ -79,9 +86,9 @@ class Cpu:
         self.print_state(i=0)
         for i in count(1):
             self.clk()
-            self.print_state(i=i)
             if self.program_counter >= len(self.code):
                 break
+            self.print_state(i=i)
 
 
 if __name__ == '__main__':

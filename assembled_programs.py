@@ -2,7 +2,7 @@
 
 
 some_functions = {
-    'MUL': {
+    'dummy_sample': {
         'code': [
             'LOAD',
             'ADD'
@@ -14,28 +14,81 @@ some_functions = {
             5
         ],
         'entry': 0 # pos in mem with start label
+    },
+    'MUL': {
+        'code': [
+            'RIGHT',
+            'SWH',
+            'LOAD',
+            'SWH',
+            'RIGHT',
+
+            'SWH',
+            'SHR',
+            'WRITE',
+            'INV',
+            'RIGHT',
+
+            'CJMP',
+            'LOAD',
+            'RIGHT',
+            'ADD',
+            'WRITE',
+
+            'LEFT',
+            'LOAD',
+            'SHL',
+            'WRITE',
+            'LEFT',
+
+            'LOAD',
+            'SWH',
+            'LEFT',
+            'CJMP',
+            'SWH',
+
+            'RIGHT',
+            'RIGHT',
+            'LOAD',
+            'LEFT',
+            'LEFT',
+
+            'LEFT',
+            'MJMP',
+            'SWH',
+            'WRITE',
+            'SWH',
+
+            'CJMP'
+
+        ],
+        'const' : [('label', 0), ('label', 4), ('label', 16)],
+        'entry' : 0
+
     }
 }
 
 
 class Assembler:
     def __init__(self, functions):
-        self.const = ['main_adress']
-        self.code = ['MJMP', 'CJMP']
+        self.const = [10000, 'main_adress']
+        self.code = ['SWH', 'RIGHT', 'SWH', 'RIGHT', 'MJMP', 'LOAD', 'CJMP']
         self.function_signatures = {}
         self.functions = functions
 
     def assemble(self):
         self.assemble_function('main')
-        self.const[0] = self.function_signatures['main']
+        self.const[1] = self.function_signatures['main']
+        return self.const, self.code
 
     #TODO: simple recursion
     def assemble_function(self, name):
         if name not in self.functions:
             raise Exception('function missing: '+name)
         for const in self.functions[name]['const']: # make sure all subcalls are assembled
-            if type(const) is tuple and const[0] == 'fun' and const[1] not in self.function_signatures:
+            if type(const) is tuple and const[0] == 'fun' and const[1] not in self.function_signatures and const[1] != name:
                 self.assemble_function(const[1])
+        self.function_signatures[name] = len(self.const) + self.functions[name]['entry']
         assembled_const = []
         for const in self.functions[name]['const']:
             if type(const) is tuple:
@@ -47,6 +100,5 @@ class Assembler:
                     assembled_const.append(const[1] + len(self.const))
             else:
                 assembled_const.append(const)
-        self.function_signatures[name] = len(self.const) + self.functions[name]['entry']
         self.const += assembled_const
         self.code += self.functions[name]['code']
