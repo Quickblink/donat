@@ -89,10 +89,10 @@ def main():
     a = 123456 #[]
     # selection_babe(a, 100)
     # bubble_babe(a, 100)
-    #quick_babe(a, 0, 99)
+    quick_babe(a, 0, 99)
     # c = rec_test(10)
     #t = teile_babe(a, 0, 4)
     #i = 0
     #while i < 4 and a[i] < 3:
     #    i = i + 1
-    return 500 * 800
+    #return 500 * 800

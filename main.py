@@ -4,7 +4,7 @@ from new_interpreter import Cpu
 import random
 
 random.seed(0)
-array = list(range(100))
+array = list(range(10))
 random.shuffle(array)
 
 functions = some_functions
@@ -13,8 +13,19 @@ for k, v in hl_functions.items():
     functions[k] = v
 const, code = Assembler(functions).assemble()
 
-for i, cmd in enumerate(functions['main']['code']):
-    print(i, cmd)
+count_dict = {}
+for i, cmd in enumerate(functions['teile_babe']['code']):
+    #print(i, cmd)
+    if cmd not in count_dict:
+        count_dict[cmd] = 1
+    else:
+        count_dict[cmd] += 1
+
+for cmd in count_dict:
+    count_dict[cmd] /= len(functions['teile_babe']['code'])
+
+
+print(count_dict)
 
 ar_pos = len(const)
 for i in range(len(const)):

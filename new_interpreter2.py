@@ -3,6 +3,17 @@ from itertools import count
 class InvalidOpCodeException(Exception):
     pass
 
+'''
+TODO:
+-faster movement
+-direct jumps
+-jmp on both memories
+-handle input and output
+-array mode
+-use copy for existing array implementation
+-build more comfortable assembler
+'''
+
 
 class Cpu:
     def __init__(self, ram_size, pd, code):
@@ -16,8 +27,20 @@ class Cpu:
         self.register = 0
         self.logical = False
 
+        self.out_buffer = 0
+        self.new_output = False
+        self.in_buffer = 0
+        self.new_input = False
+
+
     def readValue(self):
         return self.pd[self.pd_pointer] if self.pd_is_head else self.ram[self.ram_pointer]
+
+    def writeValue(self, value):
+        if self.pd_is_head:
+            self.pd[self.pd_pointer] = value
+        else:
+            self.ram[self.ram_pointer] = value
 
 
     # empty: 2, 3, 5, 12, 15
@@ -41,10 +64,7 @@ class Cpu:
             self.register = -self.register
             self.logical = not self.logical
         elif instruction == 'WRITE':  # WRITE
-            if self.pd_is_head:
-                self.pd[self.pd_pointer] = self.register
-            else:
-                self.ram[self.ram_pointer] = self.register
+            self.writeValue(self.register)
         elif instruction in ['JMP', 'CJMP']:  # CJMP
             if instruction == 'JMP' or self.logical:
                 self.program_counter = self.readValue() #self.pd[self.pd_pointer]
@@ -53,12 +73,30 @@ class Cpu:
             self.pd_pointer = self.readValue()
             #self.logical = True
             self.pd_is_head = True
-        elif instruction == 'SHL':  # SHL
-            self.register = self.register * 2
-            self.logical = 0 #should catch leftover in praxis
-        elif instruction == 'SHR':  # SHR
-            self.logical = self.register % 2
-            self.register = self.register // 2
+        elif instruction == 'SHIFT':  # SHL
+            if self.pd_is_head:
+                self.register = self.register * 2
+                self.logical = 0 #should catch leftover in praxis
+            else:
+                self.logical = self.register % 2
+                self.register = self.register // 2
+        elif instruction == 'COPY':
+            if self.pd_is_head:
+                self.ram[self.ram_pointer] = self.readValue()
+            else:
+                self.pd[self.pd_pointer] = self.readValue()
+            self.ram_pointer += 1
+            self.pd_pointer += 1
+        elif instruction == 'INP':
+            if not self.new_input:
+                return
+            self.writeValue(self.in_buffer)
+            self.new_input = False
+        elif instruction == 'OUT':
+            if self.new_output:
+                return
+            self.out_buffer = self.readValue()
+            self.new_output = True
         else:
             raise InvalidOpCodeException
         self.program_counter += 1
