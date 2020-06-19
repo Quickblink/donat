@@ -89,16 +89,26 @@ class Assembler:
             if type(const) is tuple and const[0] == 'fun' and const[1] not in self.function_signatures and const[1] != name:
                 self.assemble_function(const[1])
         self.function_signatures[name] = len(self.const) + self.functions[name]['entry']
+        assembled_code = []
+        label_dict = {}
+        for cmd in self.functions[name]['code']:
+            if type(cmd) is str:
+                assembled_code.append(cmd)
+            else:
+                label_dict[cmd[0]] = len(assembled_code)
         assembled_const = []
         for const in self.functions[name]['const']:
             if type(const) is tuple:
                 if const[0] == 'fun':
                     assembled_const.append(self.function_signatures[const[1]])
                 if const[0] == 'label':
-                    assembled_const.append(const[1] + len(self.code))
+                    if type(const[1]) is int:
+                        assembled_const.append(const[1] + len(self.code))
+                    else:
+                        assembled_const.append(label_dict[const[1]] + len(self.code))
                 if const[0] == 'mem_jmp':
                     assembled_const.append(const[1] + len(self.const))
             else:
                 assembled_const.append(const)
         self.const += assembled_const
-        self.code += self.functions[name]['code']
+        self.code += assembled_code

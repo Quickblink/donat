@@ -11,7 +11,6 @@ TODO:
 -handle input and output
 -array mode
 -use copy for existing array implementation
--build more comfortable assembler
 '''
 
 
@@ -74,7 +73,7 @@ class Cpu:
             #self.logical = True
             self.pd_is_head = True
         elif instruction == 'SHIFT':  # SHL
-            if self.pd_is_head:
+            if not self.pd_is_head:
                 self.register = self.register * 2
                 self.logical = 0 #should catch leftover in praxis
             else:

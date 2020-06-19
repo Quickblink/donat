@@ -18,78 +18,53 @@ some_functions = {
         'code': [
             'SWH',
             'RIGHT',
-            'LOAD',
             'RIGHT',
-            'RIGHT',
-
-            'WRITE',
             'SWH',
             'RIGHT',
-            'LOAD',
-            'SWH',
-
-            'LEFT',
-            'WRITE',
+            'COPY',
             'SWH',
             'RIGHT',
-            'LOAD'
-            
-            'RIGHT',
-            'LOAD',
-            'SWH',
-            'RIGHT4',
-            'WRITE',
-
-            'SWH',
-            'RIGHT',
-            'LOAD',
-            'SWH',
-            'LEFT',
-
-            'WRITE',
             'LEFT4',
-            'RIGHT',
             'LOAD',
-            'SHR',
+            'SWH',
 
+            ['start'],
+            'SHIFT', #right
+            'SWH'
             'WRITE',
             'INV',
             'RIGHT',
-
+            'RIGHT'
             'CJMP',
+
+            'LEFT',
             'LOAD',
+            'RIGHT',
             'RIGHT',
             'ADD',
             'WRITE',
-
             'LEFT',
+
+            ['endif'],
+            'LEFT'
             'LOAD',
             'SHL',
             'WRITE',
             'LEFT',
-
             'LOAD',
             'SWH',
-            'LEFT',
             'CJMP',
-            'SWH',
 
-            'RIGHT',
-            'RIGHT',
+            'SWH',
+            'RIGHT4',
+            'LEFT',
             'LOAD',
-            'LEFT',
-            'LEFT',
-
-            'LEFT',
+            'LEFT4',
             'MJMP',
-            'SWH',
-            'WRITE',
-            'SWH',
-
-            'CJMP'
+            'JMP'
 
         ],
-        'const' : [('label', 0), ('label', 4), ('label', 16)],
+        'const' : [('label', 0), ('label', 'endif'), ('label', 'start')],
         'entry' : 0
 
     }
